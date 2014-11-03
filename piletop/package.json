@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "through2": "^0.6.3"
+    "through2": "^0.6.3",
+    "openpixelcontrol": "^0.0.0"
   }
 }
