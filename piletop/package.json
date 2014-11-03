@@ -1,0 +1,14 @@
+{
+  "name": "piletop",
+  "version": "0.0.0",
+  "description": "",
+  "main": "config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "through2": "^0.6.3"
+  }
+}
