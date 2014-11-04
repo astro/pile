@@ -6,7 +6,10 @@ var through = require('through2');
 
 var animationsPath = __dirname + "/animations";
 var animations = fs.readdirSync(animationsPath).map(function(name) {
-    return require(animationsPath + "/" + name);
+    return {
+        name: name, 
+        module: require(animationsPath + "/" + name)
+    };
 });
 
 var transitionsPath = __dirname + "/transitions";
@@ -136,7 +139,8 @@ var directors = config.outputs.map(function(outputConfig) {
 /* Idle timer */
 function zap() {
     var animation = animations[Math.floor(animations.length * Math.random())];
-    var nextSource = animation(config.animationPresets);
+    console.log("zap to animation", animation.name);
+    var nextSource = animation.module(config.animationPresets);
 
     directors.forEach(function(director) {
         director.setNextSource(nextSource);
