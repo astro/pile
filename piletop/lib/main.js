@@ -18,9 +18,9 @@ var transitions = fs.readdirSync(transitionsPath).map(function(name) {
 });
 
 
-function makeBufferizer() {
+function makeBufferizer(opts) {
     function clip(x) {
-        return Math.floor(Math.max(0, Math.min(255, x)));
+        return Math.floor(Math.max(0, Math.min(opts.max, x)));
     }
     
     return through.obj({ highWaterMark: 0 }, function(frame, enc, cb) {
@@ -130,7 +130,7 @@ Director.prototype.setNextSource = function(nextSource) {
 var directors = config.outputs.map(function(outputConfig) {
     var outputModule = require("./outputs/" + outputConfig.type);
     var output = new outputModule(outputConfig);
-    var bufferize = makeBufferizer();
+    var bufferize = makeBufferizer({ max: outputConfig.max });
     var director = new Director(output);
     director.pipe(bufferize).pipe(output);
     return director;
