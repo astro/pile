@@ -22,6 +22,10 @@ function makeBufferizer(opts) {
     function clip(x) {
         return Math.floor(Math.max(0, Math.min(opts.max, x)));
     }
+    opts.gamma = opts.gamma || 2.5;
+    function gamma(x) {
+        return 255 * (Math.pow(x / 255, opts.gamma));
+    }
     
     return through.obj({ highWaterMark: 0 }, function(frame, enc, cb) {
         if (Buffer.isBuffer(frame)) {
@@ -30,7 +34,7 @@ function makeBufferizer(opts) {
             var buf = new Buffer(frame.length * 3);
             for(var i = 0; i < frame.length; i++) {
                 for(var j = 0; j < 3; j++) {
-                    buf[3 * i + j] = clip(frame[i][j]);
+                    buf[3 * i + j] = clip(gamma(frame[i][j]));
                 }
             }
             this.push(buf);
@@ -130,7 +134,10 @@ Director.prototype.setNextSource = function(nextSource) {
 var directors = config.outputs.map(function(outputConfig) {
     var outputModule = require("./outputs/" + outputConfig.type);
     var output = new outputModule(outputConfig);
-    var bufferize = makeBufferizer({ max: outputConfig.max });
+    var bufferize = makeBufferizer({
+        gamma: outputConfig.gamma,
+        max: outputConfig.max
+    });
     var director = new Director(output);
     director.pipe(bufferize).pipe(output);
     return director;
