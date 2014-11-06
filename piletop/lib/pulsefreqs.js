@@ -4,9 +4,10 @@ var ndarray = require('ndarray');
 var fft = require('ndarray-fft');
 var mag = require('ndarray-complex').mag;
 
-var CHUNKSIZE = 4 * 2400;
 var BPE = new Float32Array().BYTES_PER_ELEMENT;
 var RATE = 48000;
+var ACCUM_DURATION = 0.05;
+var ACCUM_LENGTH = Math.ceil(ACCUM_DURATION * RATE * BPE);
 
 module.exports = function(cb) {    
     pulseaudio.on('connection', function(){
@@ -17,9 +18,8 @@ module.exports = function(cb) {
             channels: 1
         });
         var output = stream
-                .pipe(chunkyStream(CHUNKSIZE))
+                .pipe(accumBufs(ACCUM_LENGTH))
                 .pipe(through.obj(function(chunk, enc, cb) {
-                    console.log("chunk", chunk.length);
                     var floats = new Float32Array(Math.floor(chunk.length / BPE));
                     for (var i = 0; i < floats.length; i++) {
                         floats[i] = chunk.readFloatLE(i * BPE);
@@ -32,18 +32,18 @@ module.exports = function(cb) {
     });
 };
 
-function chunkyStream(chunkSize) {
+function accumBufs(targetLen) {
     var buf;
-    return through(function(chunk, enc, cb) {
+    return through.obj(function(chunk, enc, cb) {
         if (buf) {
             buf = Buffer.concat([buf, chunk]);
         } else {
             buf = chunk;
         }
 
-        while(buf.length >= chunkSize) {
-            this.push(buf.slice(0, chunkSize));
-            buf = buf.slice(chunkSize);
+        if (buf.length >= targetLen) {
+            buf = buf.slice(buf.length - targetLen);
+            this.push(buf);
         }
         cb();
     });

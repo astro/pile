@@ -3,15 +3,15 @@ var through = require('through2');
 
 var freqs;
 var maxIntensity = 1000;
-var maxFreq = 2500;
+var maxFreq = 3200;
 pulsefreqs(function(err, src) {
     console.log("pulse src");
     src.pipe(through.obj(function(freqs_, enc, cb) {
         freqs = freqs_;
-        maxIntensity *= 0.995;
         for(var i = 0; i < freqs.length; i++) {
-            if (freqs[i][1] > maxIntensity) {
-                maxIntensity = freqs[i][1];
+            var intensity = Math.log(freqs[i][1]);
+            if (intensity > maxIntensity) {
+                maxIntensity = intensity;
                 console.log("maxIntensity", maxIntensity);
             }
         }
