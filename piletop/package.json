@@ -9,7 +9,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "through2": "^0.6.3",
-    "openpixelcontrol": "^0.0.0"
+    "ndarray": "^1.0.15",
+    "ndarray-complex": "^1.0.2",
+    "ndarray-fft": "^1.0.0",
+    "openpixelcontrol": "^0.0.0",
+    "pulseaudio": "0.0.1",
+    "through2": "^0.6.3"
   }
 }
