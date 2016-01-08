@@ -2,7 +2,7 @@
 
 const FPS = 60
 const LEDS = 20 + 206
-const HOST = 'ledbeere.hq.c3d2.de'
+const HOST = '172.22.99.206'  // 'ledbeere.hq.c3d2.de'
 const PORT = 2342
 
 let dgram = require('dgram')
