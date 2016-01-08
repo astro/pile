@@ -29,18 +29,27 @@ var SimplexNoise = require('simplex-noise');
 var simplex = new SimplexNoise(Math.random);
 
 var start = Date.now()
+let tickCount = 0
 let pixels = new Array(LEDS)
 setInterval(function() {
     let now = Date.now()
     var i
     for(i = 0; i < 20; i += 1) {
-        let t = (20 * (1 - (now % 2000) / 2000) + i) % 20
-        pixels[i] = [Math.max(0, (t - 16) * 63), 0, 0]
+        let t = (now % 1000) / 1000
+        let j = (20 * (1 - t) + i) % 20
+        pixels[i] = [Math.max(0, (j - 18) * 127), 0, 0]
+        if (t >= 0.55 && t < 0.75) {
+            let b = 127 * (1 - (t - 0.55) / 0.2)
+            pixels[i] = [pixels[i][0], b, b]
+        }
     }
 
     let t = (Date.now() - start) / 10
-    let w = 206
+    let w = 103
     for (i = 0; i < w; i++) {
+        if (tickCount > 0 &&
+            tickCount % 2 !== i % 2) continue;
+            
         var h2_colorspread = 180; // 10..180
         var h2_width = 100; //40..120
         h2_colorspread = (Math.sin(t / 4223) * 0.5 + 0.5) * 170 + 10;
@@ -52,11 +61,12 @@ setInterval(function() {
         // if (x==0) console.log({t: t, rgb: rgb, v:v, h:h, h2:h2 });
 
         pixels[20 + i] = [rgb.r, rgb.g, rgb.b]
+        pixels[LEDS - 1 - i] = [rgb.r, rgb.g, rgb.b]
     }
 
     send(pixels)
     
-    t += 1
+    tickCount++
 }, 1000 / FPS)
 
 function HSVtoRGB(h, s, v) {
