@@ -11,7 +11,7 @@
 #include <string.h>
 
 #define SPIDEV "/dev/spidev0.0"
-#define LEDCOUNT 160
+#define LEDCOUNT 226
 
 #define PKT_MAXLEN 65540
 /* Idle time before switching to lower prio (= higher channel) */
