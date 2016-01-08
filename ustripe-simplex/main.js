@@ -9,7 +9,7 @@ let dgram = require('dgram')
 let sock = dgram.createSocket('udp4')
 
 let buf = new Buffer(4 + 3 * LEDS)
-buf[0] = 0  // channel: 0
+buf[0] = 255  // priority
 buf[1] = 0  // command: CMD_SET_PIXEL_COLORS
 buf.writeUIntBE(3 * LEDS, 2, 2)
 
