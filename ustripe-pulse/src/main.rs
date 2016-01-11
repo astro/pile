@@ -199,7 +199,7 @@ fn main() {
         }
     });
 
-    let p = Record::new("Example", "Record", RATE);
+    let p = Record::new("ustripe-pulse", "LED-Stripe", RATE);
     let mut plan = Plan::new(Operation::Forward, WINDOW);
 
     // Fill:
