@@ -54,7 +54,6 @@ impl WaveRenderer {
         }
 
         if max >= self.max / 8.0 {
-            println!("max: {}/{} at {}/{}", max, self.max, max_i, freqs.len());
             self.waves.push(Wave {
                 color: [
                     8.0 * max_i as f32,
@@ -118,14 +117,12 @@ impl PeakRenderer {
 
         if max / self.max >= self.value {
             self.value = (max / self.max).min(1.0);
-            println!("value={}", self.value);
 
             self.color = [
                 24.0 * max_i as f32,
                 16.0 * max_i as f32 * max / self.max,
                 255.0 * self.value
             ];
-            println!("new color: {:?}", self.color);
         }
     }
 
@@ -159,7 +156,7 @@ fn analyze_channel(plan: &Plan, data: &[[f32; CHANNELS]], channel: usize) -> Vec
 }
 
 fn main() {
-    let (render_tx, render_rx) = sync_channel::<Vec<Vec<f32>>>(0);
+    let (render_tx, render_rx) = sync_channel::<Option<Vec<Vec<f32>>>>(0);
     thread::spawn(move|| {
         let src = UstripeSource::new("172.22.99.206:2342", 0);
         let mut pixels = Vec::with_capacity(LEDS);
@@ -173,26 +170,31 @@ fn main() {
             WaveRenderer::new(),
         ];
         let mut peak_render = PeakRenderer::new();
-
+        let mut paused = false;
+        
         loop {
             match render_rx.try_recv() {
-                Ok(channel_freqs) => {
+                Ok(None) => paused = true,
+                Ok(Some(channel_freqs)) => {
                     for (channel, freqs) in channel_freqs.iter().enumerate() {
                         channel_renders[channel].push_freqs(freqs);
                     }
                     peak_render.push_freqs(&channel_freqs[0]);
+                    paused = false;
                 },
                 Err(TryRecvError::Empty) => (),
                 Err(TryRecvError::Disconnected) => return
             }
 
-            for pixel in pixels.iter_mut() {
-                *pixel = [0, 0, 0];
+            if !paused {
+                for pixel in pixels.iter_mut() {
+                    *pixel = [0, 0, 0];
+                }
+                channel_renders[0].render(&mut pixels[20..123], 1);
+                channel_renders[1].render(&mut pixels[123..LEDS], -1);
+                peak_render.render(&mut pixels[0..20]);
+                src.send(&pixels);
             }
-            channel_renders[0].render(&mut pixels[20..123], -1);
-            channel_renders[1].render(&mut pixels[123..LEDS], 1);
-            peak_render.render(&mut pixels[0..20]);
-            src.send(&pixels);
             thread::sleep_ms(20);
         }
     });
@@ -209,10 +211,14 @@ fn main() {
     // Record:
     loop {
         p.read(&mut data[..]);
-        let mut channel_freqs = Vec::with_capacity(CHANNELS);
-        for channel in 0..CHANNELS {
-            channel_freqs.push(analyze_channel(&mut plan, &data[..], channel));
+        if data.iter().all(|pair| pair.iter().all(|c| -0.001 < *c && *c < 0.001)) {
+            render_tx.send(None).unwrap();
+        } else {
+            let mut channel_freqs = Vec::with_capacity(CHANNELS);
+            for channel in 0..CHANNELS {
+                channel_freqs.push(analyze_channel(&mut plan, &data[..], channel));
+            }
+            render_tx.send(Some(channel_freqs)).unwrap();
         }
-        render_tx.send(channel_freqs).unwrap();
     }
 }

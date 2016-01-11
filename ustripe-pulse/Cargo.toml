@@ -3,8 +3,6 @@ name = "ustripe-pulse"
 version = "0.1.0"
 authors = ["Astro <astro@spaceboyz.net>"]
 
-[dependencies.pulse-simple]
-path = "../../rust-pulse-simple"
-
 [dependencies]
+pulse-simple = "*"
 dft = "*"
