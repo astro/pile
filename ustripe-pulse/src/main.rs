@@ -14,15 +14,22 @@ const RATE: u32 = 22050;
 const WINDOW: usize = 2048;
 
 const GAMMA: f32 = 2.8;
+const MAX_WAVE_AGE: u16 = 100;
 
 fn gamma(x: f32) -> u8 {
     (255.0 * (x / 255.0).powf(GAMMA)).min(255.0) as u8
 }
 
+fn mix_pixel(dest: &mut [u8; 3], src: &[f32; 3], alpha: f32) {
+    for (i, d) in dest.iter_mut().enumerate() {
+        *d = ((1.0 - alpha) * *d as f32 + alpha * src[i] as f32) as u8;
+    }
+}
+
 struct Wave {
     color: [f32; 3],
-    position: u8,
-    speed: u8
+    age: u16,
+    speed: f32
 }
 
 struct WaveRenderer {
@@ -46,7 +53,7 @@ impl WaveRenderer {
                 max_i = i;
             }
         }
-        
+
         if max > self.max {
             self.max = max;
         } else {
@@ -60,8 +67,8 @@ impl WaveRenderer {
                     16.0 * max_i as f32 * max / self.max,
                     255.0 * max / self.max
                 ],
-                position: 0,
-                speed: (max_i / 4) as u8
+                age: 0,
+                speed: (max_i + 1) as f32 / 30.0
             });
         }
     }
@@ -69,18 +76,23 @@ impl WaveRenderer {
     fn render(&mut self, pixels: &mut [[u8; 3]], pitch: i8) {
         // render & advance waves
         for mut wave in self.waves.iter_mut() {
+            let position = wave.speed * wave.age as f32;
             let x = if pitch > 0 {
-                (pitch as i64 * wave.position as i64) as usize
+                (pitch as i64 * position as i64) as usize
             } else {
-                pixels.len() - 1 - (-pitch as i64 * wave.position as i64) as usize
+                pixels.len() - 1 - (-pitch as i64 * position as i64) as usize
             };
 
-            let a = 1.0 - (wave.position as f32 / pixels.len() as f32);  // alpha
-            pixels[x] = [gamma(a * wave.color[2]), gamma(a * wave.color[1]), gamma(a * wave.color[0])];
-            wave.position += wave.speed;
+            if x < pixels.len() {
+                let a = 1.0 - (wave.age as f32 / MAX_WAVE_AGE as f32);  // alpha
+                mix_pixel(&mut pixels[x], &wave.color, a);
+                pixels[x] = [gamma(a * wave.color[2]), gamma(a * wave.color[1]), gamma(a * wave.color[0])];
+            }
+
+            wave.age += 1;
         }
         // rm old waves
-        self.waves.retain(|wave| (wave.position as usize) < pixels.len());
+        self.waves.retain(|wave| wave.age < MAX_WAVE_AGE);
     }
 }
 
@@ -108,7 +120,7 @@ impl PeakRenderer {
                 max_i = i;
             }
         }
-        
+
         if max > self.max {
             self.max = max;
         } else {
@@ -138,16 +150,16 @@ impl PeakRenderer {
     }
 }
 
-    
+
 fn analyze_channel(plan: &Plan, data: &[[f32; CHANNELS]], channel: usize) -> Vec<f32> {
     let mut input = Vec::with_capacity(data.len());
     for x in data {
         input.push(x[channel] as f64);
     }
-    
+
     dft::transform(&mut input, &plan);
     let output = dft::unpack(&input);
-    
+
     let mut result = Vec::with_capacity(data.len());
     for ref c in &output[1..(output.len() / 2)] {
         result.push(c.norm() as f32);
@@ -171,7 +183,7 @@ fn main() {
         ];
         let mut peak_render = PeakRenderer::new();
         let mut paused = false;
-        
+
         loop {
             match render_rx.try_recv() {
                 Ok(None) => paused = true,
