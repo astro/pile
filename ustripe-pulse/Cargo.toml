@@ -6,3 +6,4 @@ authors = ["Astro <astro@spaceboyz.net>"]
 [dependencies]
 pulse-simple = "*"
 dft = "*"
+palette = "*"

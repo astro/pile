@@ -1,10 +1,13 @@
 extern crate pulse_simple;
 extern crate dft;
+extern crate palette;
 
 use pulse_simple::Record;
 use dft::{Operation, Plan};
 use std::thread;
 use std::sync::mpsc::{sync_channel, TryRecvError};
+use palette::{Hsv, Rgb};
+use std::convert::From;
 
 mod ustripe;
 use ustripe::*;
@@ -15,6 +18,7 @@ const WINDOW: usize = 2048;
 
 const GAMMA: f32 = 2.8;
 const MAX_WAVE_AGE: u16 = 100;
+const PEAK_CUTOFF: f32 = 0.2;
 
 fn gamma(x: f32) -> u8 {
     (255.0 * (x / 255.0).powf(GAMMA)).min(255.0) as u8
@@ -61,14 +65,11 @@ impl WaveRenderer {
         }
 
         if max >= self.max / 8.0 {
+            let color: Rgb = From::from(Hsv::hsv(From::from(180.0 - 7200.0 * max_i as f32 / freqs.len() as f32), 1.0, max / self.max));
             self.waves.push(Wave {
-                color: [
-                    8.0 * max_i as f32,
-                    16.0 * max_i as f32 * max / self.max,
-                    255.0 * max / self.max
-                ],
+                color: [255.0 * color.red, 255.0 * color.green, 255.0 * color.blue],
                 age: 0,
-                speed: (max_i + 1) as f32 / 30.0
+                speed: ((max_i + 1) as f32 / 4.0).sqrt()
             });
         }
     }
@@ -115,7 +116,7 @@ impl PeakRenderer {
         let mut max = 0.0;
         let mut max_i = 0;
         for (i, val) in freqs.iter().enumerate() {
-            if val > &max {
+            if i < (freqs.len() as f32 * PEAK_CUTOFF) as usize && val > &max {
                 max = *val;
                 max_i = i;
             }
