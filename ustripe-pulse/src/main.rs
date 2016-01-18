@@ -13,7 +13,7 @@ mod ustripe;
 use ustripe::*;
 
 const CHANNELS: usize = 2;
-const RATE: u32 = 22050;
+const RATE: u32 = 48000;
 const WINDOW: usize = 2048;
 
 const GAMMA: f32 = 2.8;
