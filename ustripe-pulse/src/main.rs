@@ -65,11 +65,11 @@ impl WaveRenderer {
         }
 
         if max >= self.max / 8.0 {
-            let color: Rgb = From::from(Hsv::hsv(From::from(180.0 - 7200.0 * max_i as f32 / freqs.len() as f32), 1.0, max / self.max));
+            let color: Rgb = From::from(Hsv::hsv(From::from(180.0 - 5.0 * max_i as f32), 1.0, (max / self.max).sqrt()));
             self.waves.push(Wave {
                 color: [255.0 * color.red, 255.0 * color.green, 255.0 * color.blue],
                 age: 0,
-                speed: ((max_i + 1) as f32 / 4.0).sqrt()
+                speed: 5.7 - 5.695 * (max_i as f32 / freqs.len() as f32).powf(1.0 / 8.0)
             });
         }
     }
@@ -79,15 +79,17 @@ impl WaveRenderer {
         for mut wave in self.waves.iter_mut() {
             let position = wave.speed * wave.age as f32;
             let x = if pitch > 0 {
-                (pitch as i64 * position as i64) as usize
+                pitch as i64 * position as i64
             } else {
-                pixels.len() - 1 - (-pitch as i64 * position as i64) as usize
+                pixels.len() as i64 - 1 - -pitch as i64 * position as i64
             };
 
-            if x < pixels.len() {
-                let a = 1.0 - (wave.age as f32 / MAX_WAVE_AGE as f32);  // alpha
-                mix_pixel(&mut pixels[x], &wave.color, a);
-                pixels[x] = [gamma(a * wave.color[2]), gamma(a * wave.color[1]), gamma(a * wave.color[0])];
+            for i in 0..4 {
+                let x1 = x + i * pitch as i64;
+                if x1 > 0 && x1 < pixels.len() as i64 {
+                    let a = (1.0 - (wave.age as f32 / MAX_WAVE_AGE as f32) - (i as f32 / 4.0)).max(0.0);  // alpha
+                    mix_pixel(&mut pixels[x1 as usize], &wave.color, a);
+                }
             }
 
             wave.age += 1;
