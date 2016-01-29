@@ -8,13 +8,14 @@ use std::thread;
 use std::sync::mpsc::{sync_channel, TryRecvError};
 use palette::{Hsv, Rgb};
 use std::convert::From;
+use std::f32::consts::PI;
 
 mod ustripe;
 use ustripe::*;
 
 const CHANNELS: usize = 2;
-const RATE: u32 = 48000;
-const WINDOW: usize = 2048;
+const RATE: u32 = 44100;
+const WINDOW: usize = 4096;
 
 const GAMMA: f32 = 2.8;
 const MAX_WAVE_AGE: u16 = 100;
@@ -38,14 +39,16 @@ struct Wave {
 
 struct WaveRenderer {
     waves: Vec<Wave>,
-    max: f32
+    max: f32,
+    base_hue: f32
 }
 
 impl WaveRenderer {
     fn new() -> Self {
         WaveRenderer {
             waves: vec![],
-            max: 0.0
+            max: 0.0,
+            base_hue: 180.0
         }
     }
     fn push_freqs(&mut self, freqs: &[f32]) {
@@ -64,12 +67,18 @@ impl WaveRenderer {
             self.max *= 0.999;
         }
 
-        if max >= self.max / 8.0 {
-            let color: Rgb = From::from(Hsv::hsv(From::from(180.0 - 5.0 * max_i as f32), 1.0, (max / self.max).sqrt()));
+        if max >= self.max / 4.0 {
+            self.base_hue += 1.0;
+            while self.base_hue >= 360.0 {
+                self.base_hue -= 360.0;
+            }
+
+            let color: Rgb = From::from(Hsv::hsv(From::from(self.base_hue - 45.0 * max_i as f32), 1.0, (max / self.max).sqrt()));
+            println!("max: {}/{} at {}, hue: {}", max, self.max, max_i, self.base_hue);
             self.waves.push(Wave {
                 color: [255.0 * color.red, 255.0 * color.green, 255.0 * color.blue],
                 age: 0,
-                speed: 5.7 - 5.695 * (max_i as f32 / freqs.len() as f32).powf(1.0 / 8.0)
+                speed: 2.5 - 2.45 * (0.5 * PI * max_i as f32 / freqs.len() as f32).sin()
             });
         }
     }
@@ -149,7 +158,7 @@ impl PeakRenderer {
                 gamma(self.value * self.color[0])
             ];
         }
-        self.value = (self.value - 0.025).max(0.0);
+        self.value = (self.value - 0.05).max(0.0);
     }
 }
 
