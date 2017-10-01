@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <linux/spi/spidev.h>
+
 
 #define SPIDEV "/dev/spidev0.0"
 #define LEDCOUNT 226
@@ -85,6 +88,16 @@ int main() {
   int udp_server = create_udp_server();
   spifd = open(SPIDEV, O_WRONLY);
   assert(spifd >= 0);
+
+  unsigned char spi_mode = SPI_MODE_0;
+  assert(ioctl(spifd, SPI_IOC_WR_MODE, &spi_mode) >= 0);
+  assert(ioctl(spifd, SPI_IOC_RD_MODE, &spi_mode) >= 0);
+  unsigned char spi_bitsPerWord = 8;
+  assert(ioctl(spifd, SPI_IOC_WR_BITS_PER_WORD, &spi_bitsPerWord) >= 0);
+  assert(ioctl(spifd, SPI_IOC_RD_BITS_PER_WORD, &spi_bitsPerWord) >= 0);
+  unsigned int spi_speed = 1000000;  // 1000000 = 1MHz (1uS per bit)
+  assert(ioctl(spifd, SPI_IOC_WR_MAX_SPEED_HZ, &spi_speed) >= 0);
+  assert(ioctl(spifd, SPI_IOC_RD_MAX_SPEED_HZ, &spi_speed) >= 0);
 
   while(1) {
     byte buf[PKT_MAXLEN];
