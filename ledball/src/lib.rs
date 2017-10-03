@@ -17,7 +17,7 @@ impl LedBall {
         LedBall { ustripe }
     }
 
-    pub fn draw<F: Fn(f64, f64) -> Color>(&self, f: F) {
+    pub fn draw<F: FnMut(f64, f64) -> Color>(&self, mut f: F) {
         let mut pixels = Vec::with_capacity(LEDS);
         let mut circle_index = 0;
         let mut circle_progress = 0;
@@ -29,7 +29,8 @@ impl LedBall {
 
             let rel_circle_progress = circle_progress as f64 / CIRCLES[circle_index] as f64;
             let lon = 360.0 * rel_circle_progress;
-            let lat = 180.0 * (circle_index as f64 + rel_circle_progress) / CIRCLES.len() as f64;
+            let lat = 180.0 * (1.0 + circle_index as f64 + rel_circle_progress) / (CIRCLES.len() + 1) as f64;
+
             let (r, g, b) = f(lat, lon);
             let rgb: [u8; 3] = [
                 r.min(255.0).max(0.0) as u8,
