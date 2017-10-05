@@ -7,7 +7,7 @@ pub struct LedBall {
     ustripe: UstripeSource,
 }
 
-type Color = (f64, f64, f64);
+pub type Color = (f64, f64, f64);
 
 const CIRCLES: &[usize] = &[48, 59, 70, 75, 80, 71, 61, 57, 42, 37, 26, 17, 31];
 
@@ -21,7 +21,7 @@ impl LedBall {
         let mut pixels = Vec::with_capacity(LEDS);
         let mut circle_index = 0;
         let mut circle_progress = 0;
-        for x in 0..LEDS {
+        for _ in 0..LEDS {
             if circle_progress >= CIRCLES[circle_index] {
                 circle_index += 1;
                 circle_progress = 0;

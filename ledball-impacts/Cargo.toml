@@ -1,0 +1,9 @@
+[package]
+name = "ledball-impacts"
+version = "0.1.0"
+authors = ["Astro <astro@spaceboyz.net>"]
+
+[dependencies]
+rand = "0.3"
+haversine = "0.2.1"
+ledball = { path = "../ledball" }
