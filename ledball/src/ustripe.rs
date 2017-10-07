@@ -34,7 +34,7 @@ impl UstripeSource {
 
         // Copy pixel data
         for pixel in pixels {
-            pkt.extend(pixel);
+            pkt.extend(&[pixel[0], pixel[2], pixel[1]]);
         }
         
         // Send
