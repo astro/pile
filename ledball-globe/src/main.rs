@@ -55,7 +55,7 @@ pub fn main() {
     let args = args().collect::<Vec<_>>();
     if args.len() != 2 {
         println!("Usage: {} <texture-file>", args[0]);
-        return exit(1);
+        exit(1);
     }
     let texture = image::open(&args[1]).expect("image::open");
     let l = LedBall::new("ledball1:2342", 0);
@@ -65,11 +65,11 @@ pub fn main() {
         let lon = 360.0 * (x as f64) / (texture.width() as f64) - 180.0;
         let lat = 180.0 * (y as f64) / (texture.height() as f64) - 90.0;
         let mut nearest = None;
-        for (i, (pLat, pLon)) in LedBall::pixel_coordinates().enumerate() {
-            match (nearest, distance((lat, lon), (pLat, pLon))) {
+        for (i, (p_lat, p_lon)) in LedBall::pixel_coordinates().enumerate() {
+            match (nearest, distance((lat, lon), (p_lat, p_lon))) {
                 (None, dist) =>
                     nearest = Some((i, dist)),
-                (Some((_, nearestDist)), dist) if dist < nearestDist =>
+                (Some((_, nearest_dist)), dist) if dist < nearest_dist =>
                     nearest = Some((i, dist)),
                 _ =>
                     (),
