@@ -9,42 +9,83 @@ pub struct LedBall {
 
 pub type Color = (f64, f64, f64);
 
-const CIRCLES: &[usize] = &[48, 59, 70, 75, 80, 71, 61, 57, 42, 37, 26, 17, 31];
-
 impl LedBall {
     pub fn new<A: ToSocketAddrs>(dest: A, priority: u8) -> Self {
         let ustripe = ustripe::UstripeSource::new(dest, priority);
         LedBall { ustripe }
     }
 
+    pub fn pixel_coordinates() -> SphericalSpiralIterator {
+        SphericalSpiralIterator::new()
+    }
+
     pub fn draw<F: FnMut(f64, f64) -> Color>(&self, mut f: F) {
-        let mut pixels = Vec::with_capacity(LEDS);
-        let mut circle_index = 0;
-        let mut circle_progress = 0;
-        for _ in 0..LEDS {
-            if circle_progress >= CIRCLES[circle_index] {
-                circle_index += 1;
-                circle_progress = 0;
+        let pixels = Self::pixel_coordinates()
+            .take(LEDS)
+            .map(|(lat, lon)| {
+                let (r, g, b) = f(lat, lon);
+                let rgb: [u8; 3] = [
+                    r.min(255.0).max(0.0) as u8,
+                    g.min(255.0).max(0.0) as u8,
+                    b.min(255.0).max(0.0) as u8,
+                ];
+                rgb
+            })
+            .collect::<Vec<_>>();
+        self.send(&pixels);
+    }
+
+    pub fn send(&self, pixels: &[[u8; 3]]) {
+        self.ustripe.send(pixels);
+    }
+}
+
+pub struct SphericalSpiralIterator {
+    circle_index: usize,
+    circle_progress: usize,
+}
+
+impl SphericalSpiralIterator {
+    pub fn new() -> Self {
+        SphericalSpiralIterator {
+            circle_index: 0,
+            circle_progress: 0,
+        }
+    }
+}
+
+const CIRCLES: &[usize] = &[48, 59, 70, 75, 80, 71, 61, 57, 42, 37, 26, 17, 31];
+
+impl Iterator for SphericalSpiralIterator {
+    /// (lat, lon)
+    type Item = (f64, f64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.circle_progress >= CIRCLES[self.circle_index] {
+            self.circle_index += 1;
+            self.circle_progress = 0;
+
+            if self.circle_index >= CIRCLES.len() {
+                return None;
             }
-
-            let rel_circle_progress = circle_progress as f64 / CIRCLES[circle_index] as f64;
-            let lon = 360.0 * rel_circle_progress;
-            let lat = 180.0 * (1.0 + circle_index as f64 + rel_circle_progress) / (CIRCLES.len() + 1) as f64;
-
-            let (r, g, b) = f(lat, lon);
-            let rgb: [u8; 3] = [
-                r.min(255.0).max(0.0) as u8,
-                g.min(255.0).max(0.0) as u8,
-                b.min(255.0).max(0.0) as u8,
-            ];
-            pixels.push(rgb);
-
-            circle_progress += 1;
         }
+        let rel_circle_progress = self.circle_progress as f64 / CIRCLES[self.circle_index] as f64;
+        let lat = 180.0 * (1.0 + self.circle_index as f64 + rel_circle_progress) / (CIRCLES.len() + 1) as f64 - 90.0;
+        let lon = 360.0 * rel_circle_progress - 180.0;
 
-        if circle_progress < CIRCLES[circle_index] {
-            println!("{} LEDs left for this circle", CIRCLES[circle_index] - circle_progress);
+        self.circle_progress += 1;
+        Some((lat, lon))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let mut circle_index = self.circle_index;
+        let mut circle_progress = self.circle_progress;
+        let mut size = 0usize;
+        while circle_index < CIRCLES.len() {
+            size += CIRCLES[circle_index] - circle_progress;
+            circle_index += 1;
+            circle_progress = 0;
         }
-        self.ustripe.send(&pixels);
+        (size, Some(size))
     }
 }

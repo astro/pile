@@ -102,8 +102,8 @@ pub fn main() {
     loop {
         l.draw(|lat, lon| {
             let pos = Location {
-                latitude: lat - 90.0,
-                longitude: lon - 180.0,
+                latitude: lat,
+                longitude: lon,
             };
             rain.get_color_at(pos, t)
         });
