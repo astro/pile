@@ -67,8 +67,13 @@ impl Rain {
             _ => panic!("Unexpected"),
         };
         self.impacts.push(Impact {
-            pos: pos,
+            pos: clone_location(&pos),
             start: t,
+            color: (255.0, 255.0, 255.0),
+        });
+        self.impacts.push(Impact {
+            pos: pos,
+            start: t + 5,
             color,
         });
 
@@ -95,7 +100,7 @@ impl Rain {
 }
 
 pub fn main() {
-    let l = LedBall::new("ledball1:2342", 0);
+    let l = LedBall::new("ledball1:2342", 255);
     let mut t = 0u64;
     let mut rain = Rain::new();
     
