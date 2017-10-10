@@ -1,3 +1,4 @@
+use std::iter::Take;
 use std::net::ToSocketAddrs;
 
 mod ustripe;
@@ -15,13 +16,16 @@ impl LedBall {
         LedBall { ustripe }
     }
 
-    pub fn pixel_coordinates() -> SphericalSpiralIterator {
-        SphericalSpiralIterator::new()
+    pub fn leds(&self) -> usize {
+        LEDS
+    }
+
+    pub fn pixel_coordinates() -> Take<SphericalSpiralIterator> {
+        SphericalSpiralIterator::new().take(LEDS)
     }
 
     pub fn draw<F: FnMut(f64, f64) -> Color>(&self, mut f: F) {
         let pixels = Self::pixel_coordinates()
-            .take(LEDS)
             .map(|(lat, lon)| {
                 let (r, g, b) = f(lat, lon);
                 let rgb: [u8; 3] = [
