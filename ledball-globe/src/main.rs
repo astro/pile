@@ -3,6 +3,8 @@ extern crate rand;
 extern crate image;
 extern crate ledball;
 
+use std::env::args;
+use std::process::exit;
 use std::thread::sleep;
 use std::time::Duration;
 use haversine::{Location, distance, Units};
@@ -12,7 +14,12 @@ use ledball::LedBall;
 
 
 pub fn main() {
-    let earth = image::open("earth.png").expect("image::open");
+    let args = args().collect::<Vec<_>>();
+    if args.len() != 2 {
+        println!("Usage: {} <texture-file>", args[0]);
+        return exit(1);
+    }
+    let earth = image::open(&args[1]).expect("image::open");
     
     let l = LedBall::new("ledball1:2342", 0);
     let mut t = 0;
