@@ -81,9 +81,10 @@ impl Rain {
         let mut impacts = self.impacts.iter()
             .map(|impact| (impact, impact.is_at(clone_location(&pos))))
             .filter(|&(ref _impact, impact_time)| impact_time <= t)
-            .collect::<Vec<_>>();
-        impacts.sort_by_key(|&(_impact, impact_time)| 0 - (impact_time as i64));
-        impacts.first().map(|&(impact, _impact_time)| impact)
+            .map(|(impact, _impact_time)| impact)
+            .collect::<Vec<&Impact>>();
+        impacts.sort_by_key(|&impact| 0 - (impact.start as i64));
+        impacts.first().map(|impact| *impact)
     }
 
     pub fn get_color_at(&self, pos: Location, t: u64) -> Color {

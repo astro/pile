@@ -5,7 +5,7 @@ use std::time::Duration;
 use ledball::UstripeSource;
 
 
-const INTERVAL: usize = 30;
+const INTERVAL: usize = 20;
 const COLORS: &[[u8; 3]] = &[
     [63, 0, 0], [0, 63, 0], [0, 0, 63],
     // [0, 63, 63], [63, 0, 63], [63, 63, 0],

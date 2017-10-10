@@ -58,7 +58,7 @@ impl Pixel {
 }
 
 
-const TICKS_PER_ITERATION: usize = 4;
+const TICKS_PER_ITERATION: usize = 6;
 
 pub fn main() {
     let mut rng = thread_rng();

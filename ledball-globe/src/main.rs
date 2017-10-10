@@ -23,14 +23,14 @@ pub fn main() {
             //     longitude: lon - 180.0,
             // };
             let ground = earth.get_pixel(
-                (((lon + t as f64) % 360.0) * earth.width() as f64 / 360.0) as u32,
+                (((lon - t as f64 / 2.0) % 360.0) * earth.width() as f64 / 360.0) as u32,
                 (lat * earth.height() as f64 / 180.0) as u32
             );
-            let m = |x: u8| ((x as f64) / 255.0).powf(8.0) * 255.0;
+            let m = |x: u8| ((x as f64) / 255.0).powf(1.2) * 255.0;
 
             (m(ground.data[0]),
+             m(ground.data[1]),
              m(ground.data[2]),
-             63.0 + m(ground.data[1]),
             )
         });
         t += 1;
