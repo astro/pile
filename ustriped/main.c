@@ -11,11 +11,11 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <linux/spi/spidev.h>
-
+#include <string.h>
 
 #define SPIDEV "/dev/spidev0.0"
-#define LEDCOUNT 226
-
+//#define LEDCOUNT 226
+int LEDCOUNT = 226;
 #define PKT_MAXLEN 65540
 /* Idle time before switching to lower prio (= higher channel) */
 #define PRIO_TIMEOUT 100000
@@ -84,7 +84,9 @@ void handle_message(byte channel, byte command, byte *data, ssize_t data_len) {
   last_message = now;
 }
 
-int main() {
+int main( int argc, char* argv[]) {
+  if (argc>1) {LEDCOUNT = atoi(argv[1]);}
+  //if (argc>2) {LEDCOUNT = argv[1];}
   int udp_server = create_udp_server();
   spifd = open(SPIDEV, O_WRONLY);
   assert(spifd >= 0);
