@@ -1,128 +1,347 @@
+#![no_main]
 #![no_std]
 #![feature(used)]
 
 extern crate cortex_m;
+#[macro_use(entry, exception)]
 extern crate cortex_m_rt;
 extern crate panic_itm;
 extern crate cortex_m_semihosting;
-#[macro_use(exception, interrupt)]
+#[macro_use(interrupt)]
 extern crate stm32f429;
 extern crate stm32f429_hal;
 extern crate embedded_hal;
+extern crate stm32_eth as eth;
+extern crate smoltcp;
+extern crate managed;
 #[macro_use(block)]
 extern crate nb;
 
+use core::slice;
+use core::cell::RefCell;
+use cortex_m::interrupt::Mutex;
 use cortex_m::asm;
-use stm32f429::{Peripherals, CorePeripherals, SYST, SCB, SPI1};
+use cortex_m_rt::ExceptionFrame;
+use stm32f429::{Peripherals, CorePeripherals, SYST, SCB, DEVICE_ID};
 use stm32f429_hal::flash::FlashExt;
 use stm32f429_hal::rcc::RccExt;
 use stm32f429_hal::gpio::GpioExt;
 use stm32f429_hal::time::U32Ext;
 use stm32f429_hal::delay::Delay;
+use stm32f429_hal::timer::Timer;
 use stm32f429_hal::spi::Spi;
+use stm32f429_hal::dma::{DmaExt, Transfer};
+use stm32f429_hal::udid::DeviceIdExt;
 use embedded_hal::digital::OutputPin;
-use embedded_hal::blocking::delay::DelayUs;
-use embedded_hal::blocking::spi::Write as SpiWrite;
 use embedded_hal::spi;
-use embedded_hal::spi::FullDuplex;
+use embedded_hal::blocking::delay::DelayUs;
+use embedded_hal::timer::CountDown;
+
+use smoltcp::time::Instant;
+use smoltcp::wire::{EthernetAddress, IpAddress, IpCidr, IpEndpoint,
+                    Ipv4Address};
+use smoltcp::iface::{NeighborCache, EthernetInterfaceBuilder, Routes};
+use smoltcp::dhcp::Dhcpv4Client;
+use smoltcp::socket::{SocketSet, UdpPacketMetadata, RawSocketBuffer, RawPacketMetadata};
+use eth::{Eth, RingEntry};
+
+mod udp_proto;
+use udp_proto::Receiver;
+
+mod mac_gen;
+use mac_gen::MacAddrGenerator;
 
 use core::fmt::Write;
 use cortex_m_semihosting::hio;
 
-fn send_colors<SPI: SpiWrite<u8>>(spi: &mut SPI, colors: &[[u8; 3]]) -> Result<(), SPI::Error> {
-    for rgb in colors {
-        // for c in rgb {
-            // block!(spi.send(*c))?;
-            // block!(spi.read())?;
-        // }
-            spi.write(rgb)?;
-    }
+static TIME: Mutex<RefCell<u64>> = Mutex::new(RefCell::new(0));
+static ETH_PENDING: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
 
-    Ok(())
+pub fn now() -> u64 {
+    cortex_m::interrupt::free(|cs| {
+        *TIME.borrow(cs)
+            .borrow()
+    })
+}
+
+
+entry!(entry);
+fn entry() -> ! {
+    loop {
+        main();
+    }
 }
 
 fn main() {
     // let mut stdout = hio::hstdout().unwrap();
 
+    // Board setup
     let p = Peripherals::take().unwrap();
     let mut cp = CorePeripherals::take().unwrap();
 
     let mut scb = cp.SCB;
     if ! SCB::icache_enabled() {
-        // writeln!(stdout, "Enable I-Cache").unwrap();
         scb.enable_icache();
     }
     if ! SCB::dcache_enabled() {
-        // writeln!(stdout, "Enable D-Cache").unwrap();
         let cpuid = &mut cp.CPUID;
         scb.enable_dcache(cpuid);
     }
     
+    setup_systick(&mut cp.SYST);
     let mut rcc = p.RCC.constrain();
     
     let mut gpiob = p.GPIOB.split(&mut rcc.ahb1);
     let mut gpioc = p.GPIOC.split(&mut rcc.ahb1);
+    let mut gpiod = p.GPIOD.split(&mut rcc.ahb1);
     let mut led_green = gpiob.pb0.into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
     let mut led_blue = gpiob.pb7.into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
     let mut led_red = gpiob.pb14.into_push_pull_output(&mut gpiob.moder, &mut gpiob.otyper);
     led_red.set_high();
     
-    // TRY the other clock configuration
+    // clock configuration
     let mut flash = p.FLASH.constrain();
     let clocks = rcc.cfgr.freeze(&mut flash.acr);
-    // let clocks = rcc.cfgr.sysclk(64.mhz()).pclk1(32.mhz()).freeze(&mut flash.acr);
-    // writeln!(stdout, "clocks: {:?}", clocks);
 
     let mut delay = Delay::new(cp.SYST, clocks);
+    // writeln!(stdout, "Start:");
+    // let mut tim2 = Timer::tim2(p.TIM2, 2.khz(), clocks, &mut rcc.apb1);
+    // for i in 0..6000 {
+    //     tim2.start(10.hz());
+    //     if i % 10 == 0 {
+    //         writeln!(stdout, "{}", i);
+    //     }
+    //     block!(tim2.wait());
+    // }
 
+    // WS2801 setup
     let mosi = gpiob.pb15.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
     let miso = gpioc.pc2.into_af5(&mut gpioc.moder, &mut gpioc.afrl);
-    let sck = gpiob.pb13.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
-    let _nss = gpiob.pb12.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
+    let sck = gpiod.pd3.into_af5(&mut gpiod.moder, &mut gpiod.afrl);
+    // let _nss = gpiob.pb12.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
 
     let spi_mode = spi::Mode {
         polarity: spi::Polarity::IdleLow,
         phase: spi::Phase::CaptureOnFirstTransition,
     };
-    let mut spi = Spi::spi2(p.SPI2, (sck, miso, mosi), spi_mode, 2.mhz(), clocks, &mut rcc.apb1);
+    let mut spi = Spi::spi2(p.SPI2, (sck, miso, mosi), spi_mode, 1.mhz(), clocks, &mut rcc.apb1);
+
+    let streams = p.DMA1.split(&mut rcc.ahb1);
+    let mut spi_dma = Some(streams.s4);
+
     led_red.set_low();
 
-    let mut colors = [[0u8; 3]; 160];
-    let colors_len = colors.len();
-    let mut offset = 0usize;
-    loop {
-        offset += 1;
+    // Ethernet setup
+    unsafe { eth::setup(&Peripherals::steal()); }
+    let mut rx_ring: [RingEntry<_>; 4] = Default::default();
+    let mut tx_ring: [RingEntry<_>; 2] = Default::default();
+    let mut eth = Eth::new(
+        p.ETHERNET_MAC, p.ETHERNET_DMA,
+        &mut rx_ring[..], &mut tx_ring[..]
+    );
+    eth.enable_interrupt(&mut cp.NVIC);
 
-        for (x, rgb) in colors.iter_mut().enumerate() {
-            let mut x1 = x as f32 + offset as f32 / 10.0;
-            while x1 >= colors_len as f32 {
-                x1 -= colors_len as f32;
-            }
-            if x1 >= 0.0 && x1 < 16.0 {
-                fn abs(x: f32) -> f32 {
-                    if x < 0.0 { - x } else { x }
-                }
-                let mut d = abs(x1 - 8.0) / 8.0;
-                if d < 0.0 { d = 0.0; }
-                if d > 1.0 { d = 1.0; }
-                *rgb = [(255.0 * d) as u8, 63 - (63.0 * d) as u8, (255.0 * d) as u8];
-            } else {
-                *rgb = [0, 15, 0];
+    led_red.set_low();
+
+    let mut ip_addrs = [IpCidr::new(Ipv4Address::UNSPECIFIED.into(), 0)];
+    let mut neighbor_storage = [None; 16];
+    let neighbor_cache = NeighborCache::new(&mut neighbor_storage[..]);
+    let mut mac_gen = MacAddrGenerator::new();
+    let udid = unsafe { slice::from_raw_parts(
+        DEVICE_ID::ptr() as *const u8,
+        12)
+    };
+    // writeln!(stdout, "UDID: {:?}", udid);
+    mac_gen.feed(udid.iter().cloned());
+    let mac_addr = mac_gen.into_addr();
+    // writeln!(stdout, "MAC: {:?}", mac_addr);
+    let ethernet_addr = EthernetAddress(mac_addr);
+    let mut routes_storage = [None; 1];
+    let routes = Routes::new(&mut routes_storage[..]);
+    let mut iface = EthernetInterfaceBuilder::new(&mut eth)
+        .ethernet_addr(ethernet_addr)
+        .ip_addrs(&mut ip_addrs[..])
+        .neighbor_cache(neighbor_cache)
+        .routes(routes)
+        .finalize();
+
+    let mut udp_tx_buffer_m = [UdpPacketMetadata::EMPTY; 1];
+    let mut udp_tx_buffer = [0u8; 128];
+    let mut udp_rx_buffer_m = [UdpPacketMetadata::EMPTY; 4];
+    let mut udp_rx_buffer = [0u8; 8192];
+
+    let mut dhcp_rx_buffer_m = [RawPacketMetadata::EMPTY; 2];
+    let mut dhcp_rx_buffer = [0u8; 3000];
+    let dhcp_rx = RawSocketBuffer::new(&mut dhcp_rx_buffer_m[..], &mut dhcp_rx_buffer[..]);
+    let mut dhcp_tx_buffer_m = [RawPacketMetadata::EMPTY; 2];
+    let mut dhcp_tx_buffer = [0u8; 3000];
+    let dhcp_tx = RawSocketBuffer::new(&mut dhcp_tx_buffer_m[..], &mut dhcp_tx_buffer[..]);
+
+    let mut sockets_storage = [None, None, None];
+    let mut sockets = SocketSet::new(&mut sockets_storage[..]);
+    let mut dhcp = Dhcpv4Client::new(&mut sockets, dhcp_rx, dhcp_tx, Instant::from_millis(0));
+
+    let mut udp_receiver = Receiver::new(
+        IpEndpoint::new(IpAddress::default(), 2342),
+        &mut sockets,
+        (&mut udp_rx_buffer_m[..], &mut udp_rx_buffer[..]),
+        (&mut udp_tx_buffer_m[..], &mut udp_tx_buffer[..])
+    );
+
+    // Init animation
+    // writeln!(stdout, "INIT");
+    let mut init_colors = [0u8; 3 * 640];
+    let init_colors_len = init_colors.len() / 3;
+    for len in 1..init_colors_len {
+        // writeln!(stdout, "i {}", len);
+        for (i, color) in init_colors.iter_mut().enumerate() {
+            match i % 3 {
+                0 => *color = 255,
+                1 => *color = 127,
+                2 => *color = len as u8,
+                _ => unreachable!()
             }
         }
-        // writeln!(stdout, "SPI sr: {:04X}", spi.spi.sr.read().bits()).unwrap();
-        led_red.set_low();
-        led_green.set_high();
-        send_colors(&mut spi, &colors)
-            .unwrap_or_else(|_e| {
-                led_red.set_high();
-                // writeln!(stdout, "SPI send: {:?}", e).unwrap();
-            });
-        led_green.set_low();
-
         led_blue.set_high();
-        // 500us + room for transmission
-        delay.delay_us(500u16);
+        spi_dma = spi.dma_write(
+            spi_dma.take().unwrap(),
+            &init_colors[0..(3 * len)]
+        ).wait()
+            .map(|spi_dma| {
+                delay.delay_us(500u16);
+                Some(spi_dma)
+            })
+            .unwrap_or_else(|spi_dma| Some(spi_dma));
         led_blue.set_low();
     }
+    // Red
+    for (i, color) in init_colors.iter_mut().enumerate() {
+        match i % 3 {
+            0 => *color = 1,
+            1 => *color = 0,
+            2 => *color = 0,
+            _ => unreachable!()
+        }
+    }
+    led_blue.set_high();
+    spi_dma = spi.dma_write(
+        spi_dma.take().unwrap(),
+        &init_colors[..]
+    ).wait()
+        .map(|spi_dma| {
+            delay.delay_us(500u16);
+            Some(spi_dma)
+        })
+        .unwrap_or_else(|spi_dma| Some(spi_dma));
+    led_blue.set_low();
+
+    // Main loop
+    // writeln!(stdout, "loop");
+    loop {
+        cortex_m::interrupt::free(|cs| {
+            let mut eth_pending =
+                ETH_PENDING.borrow(cs)
+                .borrow_mut();
+            *eth_pending = false;
+        });
+        led_red.set_low();
+
+        let now = Instant::from_millis(now() as i64);
+        // writeln!(stdout, "Poll {}", now);
+        let eth_sent = iface.poll(&mut sockets, now)
+            .unwrap_or_else(|_| {
+                led_red.set_high();
+                true
+            });
+        dhcp.poll(&mut iface, &mut sockets, now)
+            .map(|_| ())
+            // .unwrap_or_else(|e| writeln!(stdout, "DHCP: {:?}", e).unwrap());
+            .unwrap_or(());
+        udp_receiver.poll(&mut sockets, now, |pixels| {
+            // let sum = pixels.iter()
+            //     .fold(0, |sum, i| sum + i);
+            // writeln!(stdout, "Received {} bytes, sum: {:02X}", pixels.len(), sum).unwrap();
+            // for c in pixels {
+            //     write!(stdout, "{:02X} ", c);
+            // }
+            // writeln!(stdout, "");
+            led_blue.set_high();
+            // leds.write(pixels)
+            //     .unwrap_or_else(|e| {
+            //         writeln!(stdout, "recv: {:?}", e).unwrap();
+            //         led_red.set_high()
+            //     });
+            spi_dma = spi.dma_write(
+                spi_dma.take().unwrap(),
+                pixels
+            ).wait()
+                .map(|spi_dma| {
+                    delay.delay_us(500u16);
+                    Some(spi_dma)
+                })
+                .unwrap_or_else(|spi_dma| Some(spi_dma));
+            led_blue.set_low();
+        })
+            .unwrap_or_else(|_| led_red.set_high());
+
+        if ! eth_sent {
+            // Sleep if no ethernet work is pending
+            cortex_m::interrupt::free(|cs| {
+                let eth_pending =
+                    ETH_PENDING.borrow(cs)
+                    .borrow_mut();
+                if ! *eth_pending {
+                    led_green.set_high();
+                    asm::wfi();
+                    // Awaken by interrupt
+                    led_green.set_low();
+                }
+            });
+        }
+    }
 }
+
+exception!(*, default_handler);
+fn default_handler(_intr: i16) {
+}
+
+exception!(HardFault, fault_handler);
+fn fault_handler(_: &ExceptionFrame) -> ! {
+    asm::bkpt();
+    loop {}
+}
+
+fn setup_systick(syst: &mut SYST) {
+    syst.set_reload(SYST::get_ticks_per_10ms());
+    syst.enable_counter();
+    syst.enable_interrupt();
+}
+
+fn systick_interrupt_handler() {
+    cortex_m::interrupt::free(|cs| {
+        let mut time =
+            TIME.borrow(cs)
+            .borrow_mut();
+        *time += 10;
+    })
+}
+
+#[used]
+exception!(SysTick, systick_interrupt_handler);
+
+fn eth_interrupt_handler() {
+    let p = unsafe { Peripherals::steal() };
+
+    cortex_m::interrupt::free(|cs| {
+        let mut eth_pending =
+            ETH_PENDING.borrow(cs)
+            .borrow_mut();
+        *eth_pending = true;
+    });
+
+    // Clear interrupt flags
+    eth::eth_interrupt_handler(&p.ETHERNET_DMA);
+}
+
+#[used]
+interrupt!(ETH, eth_interrupt_handler);
