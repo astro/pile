@@ -182,7 +182,7 @@ fn analyze_channel(plan: &Plan, data: &[[f32; CHANNELS]], channel: usize) -> Vec
 fn main() {
     let (render_tx, render_rx) = sync_channel::<Option<Vec<Vec<f32>>>>(0);
     thread::spawn(move|| {
-        let src = UstripeSource::new("172.22.99.206:2342", 0);
+        let src = UstripeSource::new("151.216.39.66:2342", 25);
         let mut pixels = Vec::with_capacity(LEDS);
         for _ in 0..LEDS {
             pixels.push([0,0,0]);
@@ -217,6 +217,10 @@ fn main() {
                 channel_renders[0].render(&mut pixels[20..123], 1);
                 channel_renders[1].render(&mut pixels[123..LEDS], -1);
                 peak_render.render(&mut pixels[0..20]);
+                // for rgb in pixels.iter() {
+                //     print!("{:?}", rgb);
+                // }
+                // println!("");
                 src.send(&pixels);
             }
             thread::sleep_ms(20);

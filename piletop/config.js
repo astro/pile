@@ -1,17 +1,17 @@
 exports.outputs = [{
     type: 'osc_udp',
-    host: '::ffff:172.22.99.119',
+    host: '::ffff:172.22.99.206',
     port: 2342,
-    channel: 0,
-    x: 160,
+    channel: 254,
+    x: 206,
     y: 1,
     fps: 90,
     gamma: 2.5,
     max: 255
 }];
 
-exports.nextIdleAnimation = 5000;
-exports.transitionDuration = 1200;
+exports.nextIdleAnimation = 5 * 1000;
+exports.transitionDuration = 1.2 * 1000;
 
 exports.animationPresets = {
     colors: [

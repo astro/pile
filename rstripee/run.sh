@@ -4,7 +4,7 @@ export PATH=~/.cargo/bin:$PATH
 
 #xargo build --target=thumbv7em-none-eabihf --release \
 #    || exit 1
-cargo rustc --target=thumbv7em-none-eabihf --release \
+cargo rustc -j1 --target=thumbv7em-none-eabihf --release \
     || exit 1
 
 killall openocd

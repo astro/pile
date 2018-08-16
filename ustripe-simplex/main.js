@@ -5,6 +5,12 @@ const LEDS = 20 + 206
 const HOST = '172.22.99.206'  // 'ledbeere.hq.c3d2.de'
 const PORT = 2342
 
+const GAMMA = 2.5
+function gamma(x) {
+    return 255 * Math.pow((x / 255), GAMMA)
+}
+
+
 let dgram = require('dgram')
 let sock = dgram.createSocket('udp4')
 
@@ -15,9 +21,9 @@ buf.writeUIntBE(3 * LEDS, 2, 2)
 
 function send(pixels) {
     for(var i = 0; i < LEDS; i++) {
-        buf[4 + 3 * i] = pixels[i][2]
-        buf[4 + 3 * i + 1] = pixels[i][1]
-        buf[4 + 3 * i + 2] = pixels[i][0]
+        buf[4 + 3 * i] = gamma(pixels[i][2])
+        buf[4 + 3 * i + 1] = gamma(pixels[i][1])
+        buf[4 + 3 * i + 2] = gamma(pixels[i][0])
     }
     sock.send(buf, 0, buf.length, PORT, HOST, function(err) {
         if (err)
@@ -39,7 +45,7 @@ setInterval(function() {
         let j = (20 * (1 - t) + i) % 20
         pixels[i] = [Math.max(0, (j - 18) * 127), 0, 0]
         if (t >= 0.55 && t < 0.75) {
-            let b = 127 * (1 - (t - 0.55) / 0.2)
+            let b = 255 * (1 - (t - 0.55) / 0.2)
             pixels[i] = [pixels[i][0], b, b]
         }
     }

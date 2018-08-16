@@ -2,6 +2,10 @@ module.exports = function(opts) {
     return {
         render: function(output, from, to, cb) {
             var t = opts.getTime();
+            if (t < 0 || t > 1) {
+                console.error("t=" + t)
+                process.exit(1)
+            }
             var frame = [];
             for(var i = 0; i < output.x * output.y; i++) {
                 var c1 = from[i];

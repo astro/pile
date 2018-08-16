@@ -62,7 +62,7 @@ const TICKS_PER_ITERATION: usize = 6;
 
 pub fn main() {
     let mut rng = thread_rng();
-    let u = UstripeSource::new("ledball1:2342", 0);
+    let u = UstripeSource::new("ledball1:2342", 1);
     let mut pixels = Vec::with_capacity(ledball::LEDS);
     for _ in 0..ledball::LEDS {
         pixels.push(Pixel::generate(&mut rng));

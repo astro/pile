@@ -6,8 +6,7 @@ var mag = require('ndarray-complex').mag;
 
 var BPE = new Float32Array().BYTES_PER_ELEMENT;
 var RATE = 48000;
-var ACCUM_DURATION = 0.05;
-var ACCUM_LENGTH = Math.ceil(ACCUM_DURATION * RATE * BPE);
+var ACCUM_LENGTH = 64 * 1024;
 
 module.exports = function(cb) {    
     pulseaudio.on('connection', function(){
@@ -24,7 +23,7 @@ module.exports = function(cb) {
                     for (var i = 0; i < floats.length; i++) {
                         floats[i] = chunk.readFloatLE(i * BPE);
                     }
-                    var freqs = findFrequencies(floats, { rate: RATE, range: [16, 8000] });
+                    var freqs = findFrequencies(floats, { rate: RATE, range: [1, 20000] });
                     this.push(freqs);
                     cb();
                 }));

@@ -37,6 +37,7 @@ impl UstripeSource {
         }
         
         // Send
+        println!("Send {} bytes to {}", pkt.len(), self.dest);
         self.sock.send_to(&pkt[..], self.dest).unwrap();
     }
 }

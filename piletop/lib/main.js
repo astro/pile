@@ -5,11 +5,15 @@ var util = require('util');
 var through = require('through2');
 
 var animationsPath = __dirname + "/animations";
-var animations = fs.readdirSync(animationsPath).map(function(name) {
+var animations = fs.readdirSync(animationsPath).filter(function(name) {
+    return !/^pulse/.test(name)
+}).map(function(name) {
     return {
         name: name, 
         module: require(animationsPath + "/" + name)
     };
+// }).filter(function(a) {
+//     return /^star/.test(a.name);
 });
 
 var transitionsPath = __dirname + "/transitions";
@@ -112,14 +116,18 @@ Director.prototype.setNextSource = function(nextSource) {
     if (!this.source) {
         this.source = nextSource;
     } else {
+        var prevSource = this.source;
         this.source = new TransitionRender({
-            from: this.source,
+            from: prevSource,
             to: nextSource,
             duration: config.transitionDuration,
             module: transitions[Math.floor(transitions.length * Math.random())]
         });
         setTimeout(function() {
             this.source = nextSource;
+            if (prevSource && prevSource.close) {
+                prevSource.close();
+            }
             if (this.reading) {
                 this._read();
             }

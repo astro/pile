@@ -25,7 +25,7 @@ struct Impact {
 
 /// Kilometers per tick
 const WAVE_SPEED: f64 = 300.0;
-const TICK_INTERVAL: u64 = 50;
+const TICK_INTERVAL: u64 = 40;
 
 impl Impact {
     pub fn is_at(&self, pos: Location) -> u64 {
@@ -100,7 +100,7 @@ impl Rain {
 }
 
 pub fn main() {
-    let l = LedBall::new("ledball1:2342", 255);
+    let l = LedBall::new("ledball1:2342", 1);
     let mut t = 0u64;
     let mut rain = Rain::new();
     

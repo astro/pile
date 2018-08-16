@@ -58,7 +58,7 @@ pub fn main() {
         exit(1);
     }
     let texture = image::open(&args[1]).expect("image::open");
-    let l = LedBall::new("ledball1:2342", 0);
+    let l = LedBall::new("ledball1:2342", 1);
 
     println!("Building map of {} pixels…", texture.width() * texture.height());
     let map = StaticPixelMap::new(l.leds(), texture.width(), texture.height(), |x, y| {

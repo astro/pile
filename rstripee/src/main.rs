@@ -1,3 +1,7 @@
+//! ## TODO
+//!
+//! * Watchdog
+//! * mDNS
 #![no_main]
 #![no_std]
 #![feature(used)]
@@ -19,19 +23,20 @@ extern crate nb;
 
 use core::slice;
 use core::cell::RefCell;
+use core::ops::DerefMut;
 use cortex_m::interrupt::Mutex;
 use cortex_m::asm;
 use cortex_m_rt::ExceptionFrame;
-use stm32f429::{Peripherals, CorePeripherals, SYST, SCB, DEVICE_ID};
+use stm32f429::{Interrupt, Peripherals, CorePeripherals, SCB, DEVICE_ID, TIM2};
 use stm32f429_hal::flash::FlashExt;
 use stm32f429_hal::rcc::RccExt;
 use stm32f429_hal::gpio::GpioExt;
 use stm32f429_hal::time::U32Ext;
 use stm32f429_hal::delay::Delay;
-use stm32f429_hal::timer::Timer;
+use stm32f429_hal::timer::{Timer, Event};
 use stm32f429_hal::spi::Spi;
 use stm32f429_hal::dma::{DmaExt, Transfer};
-use stm32f429_hal::udid::DeviceIdExt;
+use stm32f429_hal::watchdog::{IndependentWatchdog, Watchdog};
 use embedded_hal::digital::OutputPin;
 use embedded_hal::spi;
 use embedded_hal::blocking::delay::DelayUs;
@@ -51,11 +56,13 @@ use udp_proto::Receiver;
 mod mac_gen;
 use mac_gen::MacAddrGenerator;
 
-use core::fmt::Write;
-use cortex_m_semihosting::hio;
+// use core::fmt::Write;
+// use cortex_m_semihosting::hio;
 
 static TIME: Mutex<RefCell<u64>> = Mutex::new(RefCell::new(0));
 static ETH_PENDING: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
+static TIMER: Mutex<RefCell<Option<Timer<TIM2>>>> = Mutex::new(RefCell::new(None));
+const TIMER_RATE: u32 = 4;
 
 pub fn now() -> u64 {
     cortex_m::interrupt::free(|cs| {
@@ -79,6 +86,8 @@ fn main() {
     let p = Peripherals::take().unwrap();
     let mut cp = CorePeripherals::take().unwrap();
 
+    let mut wdog = IndependentWatchdog::new(p.IWDG, 3_000);
+
     let mut scb = cp.SCB;
     if ! SCB::icache_enabled() {
         scb.enable_icache();
@@ -88,7 +97,6 @@ fn main() {
         scb.enable_dcache(cpuid);
     }
     
-    setup_systick(&mut cp.SYST);
     let mut rcc = p.RCC.constrain();
     
     let mut gpiob = p.GPIOB.split(&mut rcc.ahb1);
@@ -104,15 +112,13 @@ fn main() {
     let clocks = rcc.cfgr.freeze(&mut flash.acr);
 
     let mut delay = Delay::new(cp.SYST, clocks);
-    // writeln!(stdout, "Start:");
-    // let mut tim2 = Timer::tim2(p.TIM2, 2.khz(), clocks, &mut rcc.apb1);
-    // for i in 0..6000 {
-    //     tim2.start(10.hz());
-    //     if i % 10 == 0 {
-    //         writeln!(stdout, "{}", i);
-    //     }
-    //     block!(tim2.wait());
-    // }
+
+    let mut tim2 = Timer::tim2(p.TIM2, TIMER_RATE.hz(), clocks, &mut rcc.apb1);
+    tim2.listen(Event::TimeOut);
+    cortex_m::interrupt::free(|cs| {
+        *TIMER.borrow(cs).borrow_mut() = Some(tim2);
+    });
+    cp.NVIC.enable(Interrupt::TIM2);
 
     // WS2801 setup
     let mosi = gpiob.pb15.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
@@ -213,6 +219,8 @@ fn main() {
             })
             .unwrap_or_else(|spi_dma| Some(spi_dma));
         led_blue.set_low();
+
+        wdog.reload();
     }
     // Red
     for (i, color) in init_colors.iter_mut().enumerate() {
@@ -298,6 +306,8 @@ fn main() {
                 }
             });
         }
+
+        wdog.reload();
     }
 }
 
@@ -307,27 +317,9 @@ fn default_handler(_intr: i16) {
 
 exception!(HardFault, fault_handler);
 fn fault_handler(_: &ExceptionFrame) -> ! {
-    asm::bkpt();
+    // asm::bkpt();
     loop {}
 }
-
-fn setup_systick(syst: &mut SYST) {
-    syst.set_reload(SYST::get_ticks_per_10ms());
-    syst.enable_counter();
-    syst.enable_interrupt();
-}
-
-fn systick_interrupt_handler() {
-    cortex_m::interrupt::free(|cs| {
-        let mut time =
-            TIME.borrow(cs)
-            .borrow_mut();
-        *time += 10;
-    })
-}
-
-#[used]
-exception!(SysTick, systick_interrupt_handler);
 
 fn eth_interrupt_handler() {
     let p = unsafe { Peripherals::steal() };
@@ -345,3 +337,23 @@ fn eth_interrupt_handler() {
 
 #[used]
 interrupt!(ETH, eth_interrupt_handler);
+
+fn tim2_interrupt_handler() {
+    cortex_m::interrupt::free(|cs| {
+        match TIMER.borrow(cs).borrow_mut().deref_mut() {
+            &mut Some(ref mut timer) => {
+                // Clear update interrupt flag
+                block!(timer.wait());
+            }
+            _ => {}
+        }
+
+        let mut time =
+            TIME.borrow(cs)
+            .borrow_mut();
+        *time += u64::from(1000u32 / TIMER_RATE);
+    });
+}
+
+#[used]
+interrupt!(TIM2, tim2_interrupt_handler);
