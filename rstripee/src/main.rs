@@ -56,6 +56,10 @@ use udp_proto::Receiver;
 mod mac_gen;
 use mac_gen::MacAddrGenerator;
 
+// mod spi_dev;
+mod ws2812_spi;
+use ws2812_spi::TimedData;
+
 // use core::fmt::Write;
 // use cortex_m_semihosting::hio;
 
@@ -120,7 +124,7 @@ fn main() {
     });
     cp.NVIC.enable(Interrupt::TIM2);
 
-    // WS2801 setup
+    // WS2801/WS2812 setup
     let mosi = gpiob.pb15.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
     let miso = gpioc.pc2.into_af5(&mut gpioc.moder, &mut gpioc.afrl);
     let sck = gpiod.pd3.into_af5(&mut gpiod.moder, &mut gpiod.afrl);
@@ -130,7 +134,7 @@ fn main() {
         polarity: spi::Polarity::IdleLow,
         phase: spi::Phase::CaptureOnFirstTransition,
     };
-    let mut spi = Spi::spi2(p.SPI2, (sck, miso, mosi), spi_mode, 1.mhz(), clocks, &mut rcc.apb1);
+    let mut spi = Spi::spi2(p.SPI2, (sck, miso, mosi), spi_mode, (ws2812_spi::RESAMPLED_KHZ as u32).khz(), clocks, &mut rcc.apb1);
 
     let streams = p.DMA1.split(&mut rcc.ahb1);
     let mut spi_dma = Some(streams.s4);
@@ -196,22 +200,29 @@ fn main() {
 
     // Init animation
     // writeln!(stdout, "INIT");
-    let mut init_colors = [0u8; 3 * 640];
-    let init_colors_len = init_colors.len() / 3;
+    let mut output_buffer = [0u8; ws2812_spi::SAMPLERATE * 4 * 640];
+    let mut init_colors = [0u8; 4 * 640];
+    let init_colors_len = init_colors.len() / 4;
     for len in 1..init_colors_len {
         // writeln!(stdout, "i {}", len);
         for (i, color) in init_colors.iter_mut().enumerate() {
-            match i % 3 {
-                0 => *color = 255,
-                1 => *color = 127,
+            let i = i as u8;
+            match i % 4 {
+                0 => *color = i / 4,
+                1 => *color = 255 - (i / 4),
                 2 => *color = len as u8,
+                3 => *color = 31 * ((i / 4) % 8),
                 _ => unreachable!()
             }
         }
         led_blue.set_high();
+        let data = TimedData::encode(
+            &init_colors[0..(4 * len)],
+            &mut output_buffer[..]
+        );
         spi_dma = spi.dma_write(
             spi_dma.take().unwrap(),
-            &init_colors[0..(3 * len)]
+            &data.as_ref()[..ws2812_spi::SAMPLERATE * 4 * len]
         ).wait()
             .map(|spi_dma| {
                 delay.delay_us(500u16);
@@ -224,11 +235,9 @@ fn main() {
     }
     // Red
     for (i, color) in init_colors.iter_mut().enumerate() {
-        match i % 3 {
+        match i % 4 {
             0 => *color = 1,
-            1 => *color = 0,
-            2 => *color = 0,
-            _ => unreachable!()
+            _ => *color = 0,
         }
     }
     led_blue.set_high();
