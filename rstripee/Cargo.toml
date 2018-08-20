@@ -10,10 +10,11 @@ cortex-m-rt = "0.5"
 cortex-m-semihosting = "0.3"
 panic-itm = "0.2"
 embedded-hal = "0.2"
-stm32f429 = { git = "https://github.com/astro/stm32f429", features = ["rt"] }
-stm32f429-hal = { git = "https://github.com/astro/stm32f429-hal", features = ["rt"] }
-#stm32f429-hal = { version = "0.0.2", features = ["rt"] }
-stm32-eth = { path = "../../stm32f4/stm32-eth", features = ["target-stm32f429", "smoltcp-phy"] }
+stm32f429 = { version = "0.5", features = ["rt"] }
+#stm32f429-hal = { git = "https://github.com/astro/stm32f429-hal", features = ["rt"] }
+#stm32f429-hal = { path = "../../stm32f4/stm32f429-hal", features = ["rt"] }
+stm32f429-hal = { version = "0.1.0", features = ["rt"] }
+stm32-eth = { git = "https://github.com/astro/stm32-eth", features = ["target-stm32f429", "smoltcp-phy"] }
 smoltcp = { git = "https://github.com/astro/smoltcp.git", default-features = false, features = ["proto-ipv4", "proto-dhcpv4", "proto-ipv6", "socket-icmp", "socket-udp", "socket-tcp"] }
 managed = { version = "0.7", default-features = false }
 nb = "0.1"
