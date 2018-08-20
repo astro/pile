@@ -19,4 +19,4 @@ openocd \
     -c "flash write_image erase $BIN" \
     -c "reset run" &
 sleep 3
-arm-none-eabi-gdb $BIN
+gdb-multiarch $BIN
