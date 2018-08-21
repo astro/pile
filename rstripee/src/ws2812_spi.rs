@@ -17,7 +17,9 @@ pub struct TimedData<'a> {
 
 impl<'a> TimedData<'a> {
     /// `output` should be nulled
-    pub fn encode(input: &[u8], output: &'a mut [u8]) -> Self {
+    pub fn encode<I>(input: I, output: &'a mut [u8]) -> Self
+        where I: IntoIterator<Item=u8>
+    {
         let mut self_ = TimedData { buf: output, bits: 0 };
 
         for byte in input {
@@ -58,10 +60,6 @@ impl<'a> TimedData<'a> {
 
     pub fn len(&self) -> usize {
         (self.bits | 7) + 1
-    }
-
-    pub fn into_inner(self) -> &'a mut [u8] {
-        self.buf
     }
 }
 

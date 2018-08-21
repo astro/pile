@@ -35,7 +35,7 @@ use stm32f429_hal::time::U32Ext;
 use stm32f429_hal::delay::Delay;
 use stm32f429_hal::timer::{Timer, Event};
 use stm32f429_hal::spi::Spi;
-use stm32f429_hal::dma::{DmaExt, Transfer};
+use stm32f429_hal::dma::DmaExt;
 use stm32f429_hal::watchdog::{IndependentWatchdog, Watchdog};
 use embedded_hal::digital::OutputPin;
 use embedded_hal::spi;
@@ -56,9 +56,11 @@ use udp_proto::Receiver;
 mod mac_gen;
 use mac_gen::MacAddrGenerator;
 
-// mod spi_dev;
+mod output;
+use output::{Output, Model};
+mod spi_dev;
+use spi_dev::SpiDevice;
 mod ws2812_spi;
-use ws2812_spi::TimedData;
 
 // use core::fmt::Write;
 // use cortex_m_semihosting::hio;
@@ -103,6 +105,7 @@ fn main() {
     
     let mut rcc = p.RCC.constrain();
     
+    let mut gpioa = p.GPIOA.split(&mut rcc.ahb1);
     let mut gpiob = p.GPIOB.split(&mut rcc.ahb1);
     let mut gpioc = p.GPIOC.split(&mut rcc.ahb1);
     let mut gpiod = p.GPIOD.split(&mut rcc.ahb1);
@@ -125,19 +128,43 @@ fn main() {
     cp.NVIC.enable(Interrupt::TIM2);
 
     // WS2801/WS2812 setup
-    let mosi = gpiob.pb15.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
-    let miso = gpioc.pc2.into_af5(&mut gpioc.moder, &mut gpioc.afrl);
-    let sck = gpiod.pd3.into_af5(&mut gpiod.moder, &mut gpiod.afrl);
-    // let _nss = gpiob.pb12.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
+    let sck1 = gpioa.pa5.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
+    let miso1 = gpioa.pa6.into_af5(&mut gpioa.moder, &mut gpioa.afrl);
+    let mosi1 = gpiob.pb5.into_af5(&mut gpiob.moder, &mut gpiob.afrl);
+    let sck2 = gpiod.pd3.into_af5(&mut gpiod.moder, &mut gpiod.afrl);
+    let miso2 = gpioc.pc2.into_af5(&mut gpioc.moder, &mut gpioc.afrl);
+    let mosi2 = gpiob.pb15.into_af5(&mut gpiob.moder, &mut gpiob.afrh);
+    let sck3 = gpioc.pc10.into_af6(&mut gpioc.moder, &mut gpioc.afrh);
+    let miso3 = gpioc.pc11.into_af6(&mut gpioc.moder, &mut gpioc.afrh);
+    let mosi3 = gpioc.pc12.into_af6(&mut gpioc.moder, &mut gpioc.afrh);
 
     let spi_mode = spi::Mode {
         polarity: spi::Polarity::IdleLow,
         phase: spi::Phase::CaptureOnFirstTransition,
     };
-    let mut spi = Spi::spi2(p.SPI2, (sck, miso, mosi), spi_mode, (ws2812_spi::RESAMPLED_KHZ as u32).khz(), clocks, &mut rcc.apb1);
-
-    let streams = p.DMA1.split(&mut rcc.ahb1);
-    let mut spi_dma = Some(streams.s4);
+    let dma_streams1 = p.DMA1.split(&mut rcc.ahb1);
+    let dma_streams2 = p.DMA2.split(&mut rcc.ahb1);
+    let models = [Model::SK6812RGBW, Model::WS2801, Model::SK6812RGBW];
+    let mut outputs = [
+        Output::new(
+            SpiDevice::spi1(
+                Spi::spi1(p.SPI1, (sck1, miso1, mosi1), spi_mode, models[0].spi_clock(), clocks, &mut rcc.apb2),
+                dma_streams2.s3
+            ),
+            models[0]),
+        Output::new(
+            SpiDevice::spi2(
+                Spi::spi2(p.SPI2, (sck2, miso2, mosi2), spi_mode, models[1].spi_clock(), clocks, &mut rcc.apb1),
+                dma_streams1.s4
+            ),
+            models[1]),
+        Output::new(
+            SpiDevice::spi3(
+                Spi::spi3(p.SPI3, (sck3, miso3, mosi3), spi_mode, models[2].spi_clock(), clocks, &mut rcc.apb1),
+                dma_streams1.s5
+            ),
+            models[2]),
+    ];
 
     led_red.set_low();
 
@@ -200,35 +227,21 @@ fn main() {
 
     // Init animation
     // writeln!(stdout, "INIT");
-    let mut output_buffer = [0u8; ws2812_spi::SAMPLERATE * 4 * 640];
-    let mut init_colors = [0u8; 4 * 640];
-    let init_colors_len = init_colors.len() / 4;
+    let mut init_colors = [0u8; 3 * 640];
+    let init_colors_len = init_colors.len() / 3;
     for len in 1..init_colors_len {
         // writeln!(stdout, "i {}", len);
         for (i, color) in init_colors.iter_mut().enumerate() {
             let i = i as u8;
-            match i % 4 {
+            match i % 3 {
                 0 => *color = i / 4,
                 1 => *color = 255 - (i / 4),
                 2 => *color = len as u8,
-                3 => *color = 31 * ((i / 4) % 8),
                 _ => unreachable!()
             }
         }
         led_blue.set_high();
-        let data = TimedData::encode(
-            &init_colors[0..(4 * len)],
-            &mut output_buffer[..]
-        );
-        spi_dma = spi.dma_write(
-            spi_dma.take().unwrap(),
-            &data.as_ref()[..ws2812_spi::SAMPLERATE * 4 * len]
-        ).wait()
-            .map(|spi_dma| {
-                delay.delay_us(500u16);
-                Some(spi_dma)
-            })
-            .unwrap_or_else(|spi_dma| Some(spi_dma));
+        outputs[1].write(&init_colors[0..(3 * len)], &mut delay);
         led_blue.set_low();
 
         wdog.reload();
@@ -241,15 +254,8 @@ fn main() {
         }
     }
     led_blue.set_high();
-    spi_dma = spi.dma_write(
-        spi_dma.take().unwrap(),
-        &init_colors[..]
-    ).wait()
-        .map(|spi_dma| {
-            delay.delay_us(500u16);
-            Some(spi_dma)
-        })
-        .unwrap_or_else(|spi_dma| Some(spi_dma));
+    outputs[1].write(&init_colors[..], &mut delay);
+    delay.delay_us(500u16);
     led_blue.set_low();
 
     // Main loop
@@ -275,28 +281,8 @@ fn main() {
             // .unwrap_or_else(|e| writeln!(stdout, "DHCP: {:?}", e).unwrap());
             .unwrap_or(());
         udp_receiver.poll(&mut sockets, now, |pixels| {
-            // let sum = pixels.iter()
-            //     .fold(0, |sum, i| sum + i);
-            // writeln!(stdout, "Received {} bytes, sum: {:02X}", pixels.len(), sum).unwrap();
-            // for c in pixels {
-            //     write!(stdout, "{:02X} ", c);
-            // }
-            // writeln!(stdout, "");
             led_blue.set_high();
-            // leds.write(pixels)
-            //     .unwrap_or_else(|e| {
-            //         writeln!(stdout, "recv: {:?}", e).unwrap();
-            //         led_red.set_high()
-            //     });
-            spi_dma = spi.dma_write(
-                spi_dma.take().unwrap(),
-                pixels
-            ).wait()
-                .map(|spi_dma| {
-                    delay.delay_us(500u16);
-                    Some(spi_dma)
-                })
-                .unwrap_or_else(|spi_dma| Some(spi_dma));
+            outputs[1].write(pixels, &mut delay);
             led_blue.set_low();
         })
             .unwrap_or_else(|_| led_red.set_high());
