@@ -10,23 +10,36 @@ use stm32f429_hal::spi::Spi;
 use stm32f429_hal::dma::Transfer;
 use stm32f429_hal::dma::{dma1, dma2};
 
+pub type Spi1Sck = PA5<AF5>;
+pub type Spi1Miso = PA6<AF5>;
+pub type Spi1Mosi = PB5<AF5>;
+pub type Spi1Stream = dma2::S3;
+pub type Spi2Sck = PD3<AF5>;
+pub type Spi2Miso = PC2<AF5>;
+pub type Spi2Mosi = PB15<AF5>;
+pub type Spi2Stream = dma1::S4;
+pub type Spi3Sck = PC10<AF6>;
+pub type Spi3Miso = PC11<AF6>;
+pub type Spi3Mosi = PC12<AF6>;
+pub type Spi3Stream = dma1::S5;
+
 pub enum SpiDevice {
     Invalid,
-    Spi1(Spi<SPI1, (PA5<AF5>, PA6<AF5>, PB5<AF5>)>, dma2::S3),
-    Spi2(Spi<SPI2, (PD3<AF5>, PC2<AF5>, PB15<AF5>)>, dma1::S4),
-    Spi3(Spi<SPI3, (PC10<AF6>, PC11<AF6>, PC12<AF6>)>, dma1::S5),
+    Spi1(Spi<SPI1, (Spi1Sck, Spi1Miso, Spi1Mosi)>, Spi1Stream),
+    Spi2(Spi<SPI2, (Spi2Sck, Spi2Miso, Spi2Mosi)>, Spi2Stream),
+    Spi3(Spi<SPI3, (Spi3Sck, Spi3Miso, Spi3Mosi)>, Spi3Stream),
 }
 
 impl SpiDevice {
-    pub fn spi1(spi_dev: Spi<SPI1, (PA5<AF5>, PA6<AF5>, PB5<AF5>)>, dma_stream: dma2::S3) -> Self {
+    pub fn spi1(spi_dev: Spi<SPI1, (Spi1Sck, Spi1Miso, Spi1Mosi)>, dma_stream: Spi1Stream) -> Self {
         SpiDevice::Spi1(spi_dev, dma_stream)
     }
     
-    pub fn spi2(spi_dev: Spi<SPI2, (PD3<AF5>, PC2<AF5>, PB15<AF5>)>, dma_stream: dma1::S4) -> Self {
+    pub fn spi2(spi_dev: Spi<SPI2, (Spi2Sck, Spi2Miso, Spi2Mosi)>, dma_stream: Spi2Stream) -> Self {
         SpiDevice::Spi2(spi_dev, dma_stream)
     }
     
-    pub fn spi3(spi_dev: Spi<SPI3, (PC10<AF6>, PC11<AF6>, PC12<AF6>)>, dma_stream: dma1::S5) -> Self {
+    pub fn spi3(spi_dev: Spi<SPI3, (Spi3Sck, Spi3Miso, Spi3Mosi)>, dma_stream: Spi3Stream) -> Self {
         SpiDevice::Spi3(spi_dev, dma_stream)
     }
     
