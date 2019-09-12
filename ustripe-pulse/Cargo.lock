@@ -1,0 +1,56 @@
+[[package]]
+name = "dft"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "num 0.1.30 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "libc"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "libpulse-sys"
+version = "0.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "libc 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "num"
+version = "0.1.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "palette"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "pulse-simple"
+version = "0.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "libc 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libpulse-sys 0.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ustripe-pulse"
+version = "0.1.0"
+dependencies = [
+ "dft 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "palette 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pulse-simple 0.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[metadata]
+"checksum dft 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "472178ced6b6d47d2740f70f4fdc17489840939020ea7406b18f878d7b6c39d2"
+"checksum libc 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "10569e57695cc2c91ca4214357907649c9e242dc822c9ae623d0e0b0d68aa4d9"
+"checksum libpulse-sys 0.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9bb11b06faf883500c1b625cf4453e6c7737e9df9c7ba01df3f84b22b083e4ac"
+"checksum num 0.1.30 (registry+https://github.com/rust-lang/crates.io-index)" = "29a08e74b98b17d5e321c2026fe554777b31904b2da0f9333b80cefc99f0b5ae"
+"checksum palette 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4151ab8e94f6076c0b2c8a1fad75a25a8f6fc3ded4c68a5f15d4fb16a4dbfe7d"
+"checksum pulse-simple 0.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "95c89506ca59af990ce2b236b192cb3bdaaf89774bb4c1294601c6800ebd4caf"

@@ -1,0 +1,7 @@
+[package]
+name = "ustripe-sha"
+version = "0.1.0"
+authors = ["Astro <astro@spaceboyz.net>"]
+
+[dependencies]
+rand = "0.3"
