@@ -8,7 +8,7 @@ use rand::{thread_rng, Rng};
 use ledball::UstripeSource;
 
 
-const ROW_LENGTH: usize = 40;
+const ROW_LENGTH: usize = 128;
 const INTERVAL: u64 = 25;
 const STEPS_PER_TICK: usize = 1;
 
