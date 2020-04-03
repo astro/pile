@@ -10,6 +10,8 @@ pub struct LedBall {
 
 pub type Color = (f64, f64, f64);
 
+const MAX: f64 = 127.0;
+
 impl LedBall {
     pub fn new<A: ToSocketAddrs>(dest: A, priority: u8) -> Self {
         let ustripe = ustripe::UstripeSource::new(dest, priority);
@@ -29,9 +31,9 @@ impl LedBall {
             .map(|(lat, lon)| {
                 let (r, g, b) = f(lat, lon);
                 let rgb: [u8; 3] = [
-                    r.min(255.0).max(0.0) as u8,
-                    g.min(255.0).max(0.0) as u8,
-                    b.min(255.0).max(0.0) as u8,
+                    r.min(MAX).max(0.0) as u8,
+                    g.min(MAX).max(0.0) as u8,
+                    b.min(MAX).max(0.0) as u8,
                 ];
                 rgb
             })
@@ -45,43 +47,37 @@ impl LedBall {
 }
 
 pub struct SphericalSpiralIterator {
-    circle_index: usize,
-    circle_progress: usize,
+    n: usize,
 }
 
 impl SphericalSpiralIterator {
     pub fn new() -> Self {
         SphericalSpiralIterator {
-            circle_index: 0,
-            circle_progress: 0,
+            n: 0,
         }
     }
 }
 
-const CIRCLES: &[usize] = &[48, 59, 70, 75, 80, 71, 61, 57, 42, 37, 26, 17, 31];
+const CIRCLE_SIZE: f64 = 11.13;
 
 impl Iterator for SphericalSpiralIterator {
     /// (lat, lon)
     type Item = (f64, f64);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.circle_progress >= CIRCLES[self.circle_index] {
-            self.circle_index += 1;
-            self.circle_progress = 0;
-
-            if self.circle_index >= CIRCLES.len() {
-                return None;
-            }
+        if self.n >= LEDS {
+            return None;
         }
-        let rel_circle_progress = self.circle_progress as f64 / CIRCLES[self.circle_index] as f64;
-        let lat = 180.0 * (1.0 + self.circle_index as f64 + rel_circle_progress) / (CIRCLES.len() + 1) as f64 - 90.0;
-        let lon = 360.0 * rel_circle_progress - 180.0;
+        let circle_index = ((self.n as f64) % CIRCLE_SIZE) / CIRCLE_SIZE;
+        let circle_progress = (self.n as f64) / (LEDS as f64);
+        let lon = 360.0 * circle_index - 180.0;
+        let lat = 180.0 * circle_progress - 90.0;
 
-        self.circle_progress += 1;
+        self.n += 1;
         Some((lat, lon))
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
+    /*fn size_hint(&self) -> (usize, Option<usize>) {
         let mut circle_index = self.circle_index;
         let mut circle_progress = self.circle_progress;
         let mut size = 0usize;
@@ -91,5 +87,5 @@ impl Iterator for SphericalSpiralIterator {
             circle_progress = 0;
         }
         (size, Some(size))
-    }
+    }*/
 }

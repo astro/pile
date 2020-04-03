@@ -11,7 +11,7 @@ const IRIS_DISTANCE: f64 = 4000.0;
 const BORDER_DISTANCE: f64 = 4500.0;
 
 pub fn main() {
-    let l = LedBall::new("ledball1:2342", 0);
+    let l = LedBall::new("ledball1.hq.c3d2.de:2342", 0);
     let mut t = 0;
     loop {
         l.draw(|lat, lon| {

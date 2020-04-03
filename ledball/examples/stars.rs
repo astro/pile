@@ -8,7 +8,7 @@ use ledball::UstripeSource;
 
 
 pub fn main() {
-    let u = UstripeSource::new("ledball1:2342", 0);
+    let u = UstripeSource::new("ledball1.hq.c3d2.de:2342", 0);
     let mut pixels = [[0u8; 3]; ledball::LEDS];
     let mut rng = thread_rng();
     loop {
